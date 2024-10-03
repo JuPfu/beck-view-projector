@@ -11,28 +11,29 @@ class SPI_Display:
     ON = 1
 
     def __init__(self) -> None:
-        # GPIO pins for attached oled spi display
-        # mosi: pin 7
-        # sck:  pin 6
-        # dc:   pin 8
-        # res:  pin 9
-        # cs:   pin 5
-
+        """Initialize the SPI display with the correct GPIO pins for the OLED."""
+        # OLED display GPIO pin mapping:
+        # mosi: pin 7, sck: pin 6, dc: pin 8, res: pin 9, cs: pin 5
         spi = SPI(0, 100000, mosi=Pin(7), sck=Pin(6))
         self.ssd1306_spi = SSD1306_SPI(128, 64, spi, Pin(8), Pin(9), Pin(5))
         self.ssd1306_spi.init_display()
-        self.hello()
+        self.display_welcome_message()
 
-    def hello(self) -> None:
-        self.ssd1306_spi.fill(0)
-        self.ssd1306_spi.show()
-        self.ssd1306_spi.fill_rect(0, 0,  128,  16, 2)
+    def display_welcome_message(self) -> None:
+        """Display a welcome message when the projector is powered on."""
+        self.ssd1306_spi.fill(0)  # Clear the display
+        self.ssd1306_spi.fill_rect(0, 0, 128, 16, 2)  # Draw a filled rectangle for the title
         self.ssd1306_spi.text("beck-view", 0, 0, 0)
         self.ssd1306_spi.text("projector", 0, 8, 0)
         self.ssd1306_spi.text("Press button", 0, 25)
         self.ssd1306_spi.text("to start", 0, 35)
         self.ssd1306_spi.text("projector", 0, 45)
-        self.ssd1306_spi.show()
+        self.ssd1306_spi.show()  # Refresh the display to show changes
+
+    def clear_display(self) -> None:
+        """Helper function to clear the display for new updates."""
+        self.ssd1306_spi.fill(0)  # Clear the display
+        self.ssd1306_spi.show()  # Apply the clear action
 
 
 class Projector:
@@ -40,80 +41,79 @@ class Projector:
     ON = 1
 
     def __init__(self, display: SPI_Display) -> None:
+        """Initialize the projector and bind it to the display."""
         self.display = display
 
-    # Define the GPIO pins for the projector's components
-    led_pin = Pin(25, Pin.OUT, value=OFF)  # LED indicator for operation
+    # GPIO pin setup for projector components
+    led_pin = Pin(25, Pin.OUT, value=OFF)  # LED for visual status
+    start_pin = Pin(14, Pin.IN, value=OFF)  # Input for start button
+    stop_pin = Pin(15, Pin.IN, value=OFF)  # Input for stop button
 
-    start_pin = Pin(14, Pin.IN, value=OFF)  # Input for starting the projector
-    stop_pin = Pin(15, Pin.IN, value=OFF)  # Input for stopping the projector
+    ok1_pin = Pin(12, Pin.OUT, value=ON)  # Pin to send OK1 (frame signal)
+    eof_pin = Pin(13, Pin.OUT, value=ON)  # Pin to send EOF (end of film)
 
-    ok1_pin = Pin(12, Pin.OUT, value=ON)  # Pin to send the OK1 signal (indicating frame advancement)
-    eof_pin = Pin(13, Pin.OUT, value=ON)  # Pin to send EOF (end-of-film) signal
-
-    count = -1  # Frame counter, -1 means not running
-
-    timer = Timer()  # Timer for periodic signal sending
-
-    timer_started = False  # Flag to track if the projector is running
-    start_time = 0  # Used to calculate time between signals
+    count = -1  # Frame counter, -1 means the projector is idle
+    timer = Timer()  # Timer for periodic frame signal
+    timer_started = False  # Flag to track projector state
+    start_time = 0  # Time reference for frame timing
 
     def start_pin_isr(self, pin) -> None:
-        """Interrupt service routine triggered by the start_pin."""
+        """Interrupt triggered by the start button press."""
         micropython.schedule(self.setup_ok1_signal, None)
 
     def setup_ok1_signal(self, _) -> None:
-        """Initializes the OK1 signal transmission and starts the timer."""
-        if not self.timer_started:  # Prevents reinitialization while running
+        """Start sending OK1 signals if the projector is not already running."""
+        if not self.timer_started:
             self.count = 0
             self.timer_started = True
-            self.start_time = time.ticks_ms()  # Record start time in milliseconds
+            self.start_time = time.ticks_ms()  # Set time reference
 
-            # Start the timer to call 'send_ok1_signal' at 5 Hz (5 frames per second)
+            # Start timer at 5 Hz (5 frames per second)
             self.timer.init(mode=Timer.PERIODIC, freq=5, callback=self.send_ok1_signal)
 
     def send_ok1_signal(self, timer) -> None:
-        """Send OK1 signal (frame advancement) every timer tick."""
+        """Send OK1 signal to indicate frame progression."""
         current_time = time.ticks_ms()
         time_diff = time.ticks_diff(current_time, self.start_time)
-        self.start_time = current_time  # Update start_time for next frame
+        self.start_time = current_time  # Update time reference
 
-        # Flash the LED and toggle the OK1 pin to simulate a frame advancing signal
+        # Flash the LED and toggle OK1 pin to simulate frame signal
         self.led_pin.value(self.ON)  # Turn LED ON
-        self.ok1_pin.value(self.OFF)  # Send OK1 signal
+        self.ok1_pin.value(self.OFF)  # Activate OK1
         time.sleep_us(8000)  # Wait for 8 milliseconds (8000 microseconds)
-        self.ok1_pin.value(self.ON)  # Reset OK1 signal
+        self.ok1_pin.value(self.ON)  # Deactivate OK1
         self.led_pin.value(self.OFF)  # Turn LED OFF
 
-        self.display.ssd1306_spi.fill(0)
-        self.display.ssd1306_spi.show()
+        # Update the display with the current frame count and FPS
+        self.display.clear_display()  # Clear display before writing new info
         self.display.ssd1306_spi.text(f"Frame {self.count}", 0, 0)
-        fps: float = 1000.0 / time_diff
+        fps = 1000.0 / time_diff  # Calculate FPS from time difference
         self.display.ssd1306_spi.text(f"FPS   {fps:.2f}", 0, 10)
-        self.display.ssd1306_spi.show()
+        self.display.ssd1306_spi.show()  # Refresh display with new data
 
-        self.count += 1  # Increment the frame counter
+        self.count += 1  # Increment frame counter
 
     def stop_pin_isr(self, pin) -> None:
-        """Interrupt service routine triggered by the stop_pin."""
+        """Interrupt triggered by the stop button press."""
         micropython.schedule(self.setup_eof_signal, None)
 
     def setup_eof_signal(self, _) -> None:
-        """Stops the timer and sends EOF signal."""
+        """Stop the projector and send an EOF signal."""
         if self.timer_started:
             self.timer_started = False
             self.timer.deinit()  # Stop the timer
             self.send_eof_signal()
 
     def send_eof_signal(self) -> None:
-        """Send End-Of-Film signal to indicate projector has stopped."""
+        """Send an EOF signal to indicate the projector has stopped."""
         self.led_pin.value(self.ON)  # Turn LED ON
         self.eof_pin.value(self.OFF)  # Send EOF signal
         time.sleep_us(8000)  # Wait for 8 milliseconds (8000 microseconds)
         self.eof_pin.value(self.ON)  # Reset EOF signal
         self.led_pin.value(self.OFF)  # Turn LED OFF
-        self.display.ssd1306_spi.fill(0)
-        self.display.ssd1306_spi.show()
+
+        # Display the end of film message with total frames projected
+        self.display.clear_display()
         self.display.ssd1306_spi.text(f"EOF reached", 0, 0)
         self.display.ssd1306_spi.text(f"Total frames {self.count}", 0, 10)
         self.display.ssd1306_spi.show()
@@ -121,18 +121,19 @@ class Projector:
 
 
 if __name__ == '__main__':
-    # Initialize the projector
+    # Initialize the OLED display and projector
     spi_display = SPI_Display()
     projector = Projector(spi_display)
+
     projector.led_pin.value(projector.ON)
 
-    # Set up interrupts for the start and stop buttons (falling edge detection)
+    # Set up interrupts for start/stop buttons on falling edge (button pressed)
     projector.start_pin.irq(handler=projector.start_pin_isr, trigger=Pin.IRQ_FALLING)
     projector.stop_pin.irq(handler=projector.stop_pin_isr, trigger=Pin.IRQ_FALLING)
 
-    # Simple LED blinking loop to indicate the system is ready
+    # Simple LED blink loop to indicate system readiness
     for _ in range(10):
         projector.led_pin.value(projector.OFF)
-        time.sleep_ms(100)  # LED OFF for 100 ms
+        time.sleep_ms(100)  # LED OFF for 100ms
         projector.led_pin.value(projector.ON)
-        time.sleep_ms(100)  # LED ON for 100 ms
+        time.sleep_ms(100)  # LED ON for 100ms
