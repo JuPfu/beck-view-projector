@@ -86,9 +86,9 @@ class Projector:
 
         # Update the display with the current frame count and FPS
         self.display.clear_display()  # Clear display before writing new info
-        self.display.ssd1306_spi.text(f"Frame {self.count}", 0, 0)
+        self.display.ssd1306_spi.text(f"Frame {self.count}", 0, 25)
         fps = 1000.0 / time_diff  # Calculate FPS from time difference
-        self.display.ssd1306_spi.text(f"FPS   {fps:.2f}", 0, 10)
+        self.display.ssd1306_spi.text(f"FPS   {fps:.2f}", 0, 35)
         self.display.ssd1306_spi.show()  # Refresh display with new data
 
         self.count += 1  # Increment frame counter
@@ -114,8 +114,8 @@ class Projector:
 
         # Display the end of film message with total frames projected
         self.display.clear_display()
-        self.display.ssd1306_spi.text(f"EOF reached", 0, 0)
-        self.display.ssd1306_spi.text(f"Total frames {self.count}", 0, 10)
+        self.display.ssd1306_spi.text(f"EOF reached", 0, 25)
+        self.display.ssd1306_spi.text(f"Frames {self.count}", 0, 35)
         self.display.ssd1306_spi.show()
         self.count = -1  # Reset frame counter
 
