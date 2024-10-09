@@ -45,6 +45,7 @@ class Projector:
         self.display = display
 
     adc0 = ADC(0)
+    adc_timer = Timer()
 
     # GPIO pin setup for projector components
     led_pin = Pin(25, Pin.OUT, value=OFF)  # LED for visual status
@@ -125,7 +126,7 @@ class Projector:
 
     def setup_adc_signal(self) -> None:
         """Interrupt triggered by the stop button press."""
-        self.timer.init(mode=Timer.PERIODIC, freq=5, callback=self.read_adc_signal)
+        self.adc_timer.init(mode=Timer.PERIODIC, freq=5, callback=self.read_adc_signal)
 
     def read_adc_signal(self, timer) -> None:
         self.freq = round(self.adc0.read_u16() / 65535 * 24)
