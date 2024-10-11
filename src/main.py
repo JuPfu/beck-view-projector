@@ -49,8 +49,8 @@ class Projector:
 
     # GPIO pin setup for projector components
     led_pin = Pin(25, Pin.OUT, pull=Pin.PULL_DOWN, value=OFF)  # LED for visual status
-    start_pin = Pin(14, Pin.IN, pull=Pin.PULL_DOWN, value=OFF)  # Input for start button
-    stop_pin = Pin(15, Pin.IN, pull=Pin.PULL_DOWN, value=OFF)  # Input for stop button
+    start_pin = Pin(14, Pin.IN, value=OFF)  # Input for start button
+    stop_pin = Pin(15, Pin.IN, value=OFF)  # Input for stop button
 
     ok1_pin = Pin(12, Pin.OUT, pull=Pin.PULL_DOWN, value=ON)  # Pin to send OK1 (frame signal)
     eof_pin = Pin(13, Pin.OUT, pull=Pin.PULL_DOWN, value=ON)  # Pin to send EOF (end of film)
@@ -67,8 +67,12 @@ class Projector:
         micropython.schedule(self.setup_ok1_signal, None)
 
     def setup_ok1_signal(self, _) -> None:
+
         """Start sending OK1 signals if the projector is not already running."""
         if not self.timer_started:
+            self.adc_timer.deinit()  # remove timer for potentiometer
+            self.adc_timer = None
+
             self.count = 0
             self.timer_started = True
             self.start_time = time.ticks_ms()  # Set time reference
@@ -123,6 +127,10 @@ class Projector:
         self.display.ssd1306_spi.text(f"Frames {self.count}", 0, 35)
         self.display.ssd1306_spi.show()
         self.count = -1  # Reset frame counter
+
+        if self.adc_timer != None:
+            self.adc_timer.deinit()
+        self.setup_adc_signal()
 
     def setup_adc_signal(self) -> None:
         """Interrupt triggered by the stop button press."""
