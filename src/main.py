@@ -1,7 +1,7 @@
 import time
 
 import micropython
-from machine import Pin, Timer, SPI, ADC
+from machine import ADC, SPI, Pin, Timer
 
 from ssd1306 import SSD1306_SPI
 
@@ -22,7 +22,9 @@ class SPI_Display:
     def display_welcome_message(self) -> None:
         """Display a welcome message when the projector is powered on."""
         self.ssd1306_spi.fill(0)  # Clear the display
-        self.ssd1306_spi.fill_rect(0, 0, 128, 16, 2)  # Draw a filled rectangle for the title
+        self.ssd1306_spi.fill_rect(
+            0, 0, 128, 16, 2
+        )  # Draw a filled rectangle for the title
         self.ssd1306_spi.text("beck-view", 0, 0, 0)
         self.ssd1306_spi.text("projector", 0, 8, 0)
         self.ssd1306_spi.text("Press button", 0, 25)
@@ -52,8 +54,12 @@ class Projector:
     start_pin = Pin(14, Pin.IN, value=OFF)  # Input for start button
     stop_pin = Pin(15, Pin.IN, value=OFF)  # Input for stop button
 
-    ok1_pin = Pin(12, Pin.OUT, pull=Pin.PULL_DOWN, value=ON)  # Pin to send OK1 (frame signal)
-    eof_pin = Pin(13, Pin.OUT, pull=Pin.PULL_DOWN, value=ON)  # Pin to send EOF (end of film)
+    ok1_pin = Pin(
+        12, Pin.OUT, pull=Pin.PULL_DOWN, value=ON
+    )  # Pin to send OK1 (frame signal)
+    eof_pin = Pin(
+        13, Pin.OUT, pull=Pin.PULL_DOWN, value=ON
+    )  # Pin to send EOF (end of film)
 
     count = -1  # Frame counter, -1 means the projector is idle
     timer = Timer()  # Timer for periodic frame signal
@@ -67,18 +73,18 @@ class Projector:
         micropython.schedule(self.setup_ok1_signal, None)
 
     def setup_ok1_signal(self, _) -> None:
-
         """Start sending OK1 signals if the projector is not already running."""
         if not self.timer_started:
             self.adc_timer.deinit()  # remove timer for potentiometer
-            self.adc_timer = None
 
             self.count = 0
             self.timer_started = True
             self.start_time = time.ticks_ms()  # Set time reference
 
             # Start timer at 5 Hz (5 frames per second)
-            self.timer.init(mode=Timer.PERIODIC, freq=self.freq, callback=self.send_ok1_signal)
+            self.timer.init(
+                mode=Timer.PERIODIC, freq=self.freq, callback=self.send_ok1_signal
+            )
 
     def send_ok1_signal(self, timer) -> None:
         """Send OK1 signal to indicate frame progression."""
@@ -138,12 +144,14 @@ class Projector:
 
     def read_adc_signal(self, timer) -> None:
         self.freq = round(self.adc0.read_u16() / 65535 * 24)
-        self.display.ssd1306_spi.fill_rect(0, 55, 128, 8, 0)  # Draw a filled rectangle for the title
+        self.display.ssd1306_spi.fill_rect(
+            0, 55, 128, 8, 0
+        )  # Draw a filled rectangle for the title
         self.display.ssd1306_spi.text(f"FPS   {self.freq:2d}", 0, 55)
         self.display.ssd1306_spi.show()  # Refresh display with new data
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Initialize the OLED display and projector
     spi_display = SPI_Display()
     projector = Projector(spi_display)
